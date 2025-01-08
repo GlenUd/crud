@@ -1,166 +1,271 @@
 #include <stdio.h>
+#include <string.h>
 #include "funciones.h"
 
-int menu(){
-    int opc;
+int menu()
+{
+    int opc = 0;
     printf("1. Crear factura\n");
-    printf("2. Leer facturas\n");
-    printf("3. Buscar factura por cedula\n");
-    printf("4. Actualizar factura\n");
-    printf("5. Eliminar factura\n");
-    printf("6. Salir\n");
+    printf("2. Ver facturas\n");
+    printf("3. Editar factura\n");
+    printf("4. Eliminar factura\n");
+    printf("5. Salir\n");
     printf("Opcion: ");
     scanf("%d", &opc);
     return opc;
 }
-void save(struct Factura *factura){
+
+void save(struct Factura *factura)
+{
     FILE *file;
-    file = fopen("factura.dat", "ab+");
-    if(file == NULL){
+    file = fopen("facturas.dat", "ab+");
+    if (file == NULL)
+    {
         printf("Error al abrir el archivo\n");
         return;
-    }else{
+    }
+    else
+    {
         fwrite(factura, sizeof(struct Factura), 1, file);
         printf("Factura guardada\n");
     }
     fclose(file);
 }
 
-void leercadena(char *cadena, int numcaracteres){
-    int c;
-    while ((c = getchar()) != '\n' && c != EOF); // Clear the input buffer
+void leerCadena(char *cadena, int numcaracteres)
+{
+    fflush(stdin);
     fgets(cadena, numcaracteres, stdin);
     int len = strlen(cadena) - 1;
-    if (cadena[len] == '\n') {
+    if (cadena[len] == '\n')
         cadena[len] = '\0';
-    }
 }
 
-void createFactura(){
+int validarCedulaUnica(int cedula)
+{
+    struct Factura factura;
+    FILE *file = fopen("facturas.dat", "rb");
+    if (file == NULL)
+        return 1; // Si no hay archivo, la cédula es única.
+
+    while (fread(&factura, sizeof(struct Factura), 1, file))
+    {
+        if (factura.cedula == cedula && factura.estado == 0)
+        {
+            fclose(file);
+            return 0; // La cédula ya existe.
+        }
+    }
+    fclose(file);
+    return 1; // La cédula es única.
+}
+
+void createFactura()
+{
     struct Factura factura;
     factura.total = 0;
+
+    printf("Ingrese la cédula del cliente: ");
+    do
+    {
+        scanf("%d", &factura.cedula);
+        if (factura.cedula <= 0)
+        {
+            printf("La cédula no puede ser negativa ni cero. Intente de nuevo: ");
+        }
+        else if (!validarCedulaUnica(factura.cedula))
+        {
+            printf("La cédula ya existe. Intente con otra: ");
+        }
+    } while (factura.cedula <= 0 || !validarCedulaUnica(factura.cedula));
+
     printf("Nombre del cliente: ");
-    leercadena(factura.nombre, 50);
-    printf("Cedula del cliente: ");
-    scanf("%d", &factura.cedula);
-    printf("Numero de productos: ");
-    scanf("%d", &factura.numprod);
-    for(int i = 0; i < factura.numprod; i++){
+    leerCadena(factura.nombre, 50);
+
+    printf("Número de productos: ");
+    do
+    {
+        scanf("%d", &factura.numProd);
+        if (factura.numProd <= 0)
+        {
+            printf("El número de productos debe ser mayor que cero. Intente de nuevo: ");
+        }
+    } while (factura.numProd <= 0);
+
+    for (int i = 0; i < factura.numProd; i++)
+    {
         printf("Nombre del producto %d: ", i + 1);
-        leercadena(factura.productos[i].nombre, 50);
-        printf("Cantidad: ");
-        scanf("%d", &factura.productos[i].cantidad);
-        printf("Precio: ");
-        scanf("%f", &factura.productos[i].precio);
-        factura.total += factura.productos[i].precio * factura.productos[i].cantidad;
+        leerCadena(factura.productos[i].nombre, 50);
+
+        printf("Cantidad del producto %d: ", i + 1);
+        do
+        {
+            scanf("%d", &factura.productos[i].cantidad);
+            if (factura.productos[i].cantidad <= 0)
+            {
+                printf("La cantidad debe ser mayor que cero. Intente de nuevo: ");
+            }
+        } while (factura.productos[i].cantidad <= 0);
+
+        printf("Precio del producto %d: ", i + 1);
+        do
+        {
+            scanf("%f", &factura.productos[i].precio);
+            if (factura.productos[i].precio <= 0)
+            {
+                printf("El precio debe ser mayor que cero. Intente de nuevo: ");
+            }
+        } while (factura.productos[i].precio <= 0);
+
+        factura.total += factura.productos[i].cantidad * factura.productos[i].precio;
     }
+
     factura.estado = 0;
     save(&factura);
 }
 
-void readFactura(){
-    FILE *file;
+void readFactura()
+{
     struct Factura factura;
-    file = fopen("factura.dat", "rb");
-    if(file == NULL){
+
+    FILE *file;
+    int opc;
+    file = fopen("facturas.dat", "rb");
+    if (file == NULL)
+    {
         printf("Error al abrir el archivo\n");
         return;
     }
-    printf("cedula\t\tNombre\t\tTotal\n");
-    while(fread(&factura, sizeof(struct Factura), 1, file)){
-        if(factura.estado != 2) { // Check if the factura is not deleted
-            printf("%d\t\t%s\t\t%.2f\n",    factura.cedula,
-                                            factura.nombre, 
-                                            factura.total);
+    printf("Cedula\t\tNombre\t\tTotal\n");
+    while (fread(&factura, sizeof(struct Factura), 1, file))
+    {
+        if (factura.estado == 0) // Solo mostrar facturas activas
+        {
+            printf("%d\t\t%s\t\t%.2f\n", factura.cedula,
+                   factura.nombre,
+                   factura.total);
         }
     }
     fclose(file);
+    printf("Desea ver el detalle de alguna factura? (1. Si, 2. No): \n");
+    scanf("%d", &opc);
+    if (opc == 1)
+    {
+        printf("Ingrese la cedula del cliente: ");
+        int cedula;
+        scanf("%d", &cedula);
+        findFacturaByCedula(cedula);
+    }
 }
 
-int findfacturabycedula(int cedula){
+int findFacturaByCedula(int cedula)
+{
     struct Factura factura;
-    int f = 0, posicion = -1;
+    int pos = -1, index = 0;
     FILE *file;
-    file = fopen("factura.dat", "rb");
-    if(file == NULL){
+    file = fopen("facturas.dat", "rb");
+    if (file == NULL)
+    {
         printf("Error al abrir el archivo\n");
         return -1;
     }
-    while(fread(&factura, sizeof(struct Factura), 1, file)){
-        if(factura.cedula == cedula && factura.estado != 2){
-            f = 1;
-            printf("factura encontrada\n");
-            printf("Nombre: %s\n", factura.nombre);
-            printf("Cedula: %d\n", factura.cedula);
-            printf("Total: %.2f\n", factura.total);
-            printf("Productos\n");
-            printf("Nombre\t\tCantidad\t\tPrecio\n");           
-            for(int i = 0; i < factura.numprod; i++){
-                printf("%s\t\t%d\t\t%.2f\n", factura.productos[i].nombre,
-                                            factura.productos[i].cantidad,
-                                            factura.productos[i].precio);
-            }
-            printf("total: %.2f\n", factura.total);
-            posicion = ftell(file) - sizeof(struct Factura); // Correct position
+    while (fread(&factura, sizeof(struct Factura), 1, file))
+    {
+        if (factura.cedula == cedula && factura.estado == 0)
+        {
+            pos = index;
             break;
         }
+        index++;
     }
+    fclose(file);
+    return pos;
+}
 
-    if (f == 0){
+void updateFactura()
+{
+    int cedula;
+    printf("Ingrese la cedula del cliente: ");
+    scanf("%d", &cedula);
+    int pos = findFacturaByCedula(cedula);
+
+    if (pos != -1)
+    {
+        FILE *file = fopen("facturas.dat", "r+b");
+        if (file == NULL)
+        {
+            printf("Error al abrir el archivo\n");
+            return;
+        }
+
+        struct Factura factura;
+        fseek(file, pos * sizeof(struct Factura), SEEK_SET);
+        fread(&factura, sizeof(struct Factura), 1, file);
+
+        printf("Nombre del cliente: ");
+        leerCadena(factura.nombre, 50);
+
+        printf("Numero de productos: ");
+        scanf("%d", &factura.numProd);
+
+        factura.total = 0;
+        for (int i = 0; i < factura.numProd; i++)
+        {
+            printf("Producto %d:\n", i + 1);
+            printf("Nombre: ");
+            leerCadena(factura.productos[i].nombre, 50);
+            printf("Cantidad: ");
+            scanf("%d", &factura.productos[i].cantidad);
+            printf("Precio: ");
+            scanf("%f", &factura.productos[i].precio);
+
+            factura.total += factura.productos[i].cantidad * factura.productos[i].precio;
+        }
+
+        factura.estado = 0;
+        fseek(file, pos * sizeof(struct Factura), SEEK_SET);
+        fwrite(&factura, sizeof(struct Factura), 1, file);
+        fclose(file);
+
+        printf("Factura actualizada con éxito\n");
+    }
+    else
+    {
         printf("Factura no encontrada\n");
     }
-    fclose(file);
-    return posicion;
 }
 
-void updatefactura(int posicion) {
-    struct Factura factura;
-    FILE *file = fopen("factura.dat", "rb+");
-    if (file == NULL) {
-        printf("Error al abrir el archivo\n");
-        return;
+void deleteFactura()
+{
+    int cedula;
+    printf("Ingrese la cédula del cliente: ");
+    scanf("%d", &cedula);
+
+    int pos = findFacturaByCedula(cedula);
+    if (pos != -1)
+    {
+        FILE *file = fopen("facturas.dat", "r+b");
+        if (file == NULL)
+        {
+            printf("Error al abrir el archivo\n");
+            return;
+        }
+
+        struct Factura factura;
+        fseek(file, pos * sizeof(struct Factura), SEEK_SET);
+        fread(&factura, sizeof(struct Factura), 1, file);
+
+        // Marcar la factura como eliminada
+        factura.estado = 1;
+
+        fseek(file, pos * sizeof(struct Factura), SEEK_SET);
+        fwrite(&factura, sizeof(struct Factura), 1, file);
+        fclose(file);
+
+        printf("Factura con cedula %d eliminada correctamente.\n", cedula);
     }
-
-    fseek(file, posicion, SEEK_SET);
-    fread(&factura, sizeof(struct Factura), 1, file);
-
-    printf("Actualizar datos de la factura:\n");
-    printf("Nombre del cliente (%s): ", factura.nombre);
-    leercadena(factura.nombre, 50);
-    printf("Cedula del cliente (%d): ", factura.cedula);
-    scanf("%d", &factura.cedula);
-    printf("Numero de productos (%d): ", factura.numprod);
-    scanf("%d", &factura.numprod);
-    factura.total = 0;
-    for (int i = 0; i < factura.numprod; i++) {
-        printf("Nombre del producto %d (%s): ", i + 1, factura.productos[i].nombre);
-        leercadena(factura.productos[i].nombre, 50);
-        printf("Cantidad (%d): ", factura.productos[i].cantidad);
-        scanf("%d", &factura.productos[i].cantidad);
-        printf("Precio (%.2f): ", factura.productos[i].precio);
-        scanf("%f", &factura.productos[i].precio);
-        factura.total += factura.productos[i].precio * factura.productos[i].cantidad;
+    else
+    {
+        printf("Factura no encontrada para la cedula %d.\n", cedula);
     }
-
-    fseek(file, posicion, SEEK_SET);
-    fwrite(&factura, sizeof(struct Factura), 1, file);
-    fclose(file);
-    printf("Factura actualizada\n");
-}
-
-
-void deletefactura(int posicion){
-    struct Factura factura;
-    FILE *file;
-    file = fopen("factura.dat", "rb+");
-    if(file == NULL){
-        printf("Error al abrir el archivo\n");
-        return;
-    }
-    fseek(file, posicion, SEEK_SET);
-    fread(&factura, sizeof(struct Factura), 1, file);
-    factura.estado = 2;
-    fseek(file, posicion, SEEK_SET);
-    fwrite(&factura, sizeof(struct Factura), 1, file);
-    fclose(file);
 }
